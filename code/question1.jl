@@ -42,8 +42,7 @@ nb_data = length(norm_df[:,1])
 #Defining the MIP model
 solver = Model(Ipopt.Optimizer)
 
-#Lower & Upper bounds eps <= l <= u <= 1-eps 
-# 0 <= l < u < 1
+#Lower & Upper bounds:   eps <= l <= u <= 1-eps 
 @variable(solver,u[1:dimension_d] <= 1.0-EPSI)
 @variable(solver,l[1:dimension_d] >= EPSI)
 @constraint(solver,u .>= l)
@@ -57,18 +56,10 @@ for i in 1:dimension_d
     @constraint(solver,[j = 1:nb_data],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
 end
 
-optimize!(solver) #execute model
-@show solver #print
+optimize!(solver)
+@show solver 
 @show objective_value(solver)
 @show value.(u)
 @show value.(l)
 
 #values of u & l should be normalized ?
-
-# function is_bigger(x,y)
-#     if(x > y)
-#         return 1
-#     end
-#     return 0
-# end
-# @NLconstraint(solver, sum(is_bigger(u[i], x_i[j]) for j in 1:nb_data) + sum(is_bigger(x_i[j],l[i]) for j in 1:nb_data) == nb_data)

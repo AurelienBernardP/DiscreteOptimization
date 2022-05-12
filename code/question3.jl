@@ -13,59 +13,56 @@ using DataFrames
 using StatsBase
 
 CSV_FILE_NAME = "DataProjetExport.csv"
-THRESHOLD = 1
+THRESHOLD = 1.0
+EPSI = 0.0000001 # = eps(Float16,32,64)
 
 #Reading the file
-df = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
-
-#Remove all datapoints of the set Y, only keep datapoints of set X
-df_x = filter(row -> (row[ncol(df)] > THRESHOLD),  df)
+data = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
 
 #Retrieve the last column to only have input variables in the data frame
-df = select!(df, Not(ncol(df)))
-
-#Dimension of the dataset
-dimension_d = ncol(df)
-nb_X = length(df[:,1])
+output_variable = data[:,ncol(data)]
+data = select!(data, Not(ncol(data)))
 
 #Normalizing the input variables
-df_array = Array(df)
-dt = fit(UnitRangeTransform,dims=1 ,df_array)
-norm_df = StatsBase.transform!(dt, df_array)
+data_array = Array(data)
+dt = fit(UnitRangeTransform,dims=1 ,data_array)
+norm_data = StatsBase.transform!(dt, data_array)
+
+#Splitting the dataframe into the set X and Y
+for i=length(output_variable):-1:1
+    if(output_variable[i] <= THRESHOLD)
+        global norm_data_y = [norm_data_y, norm_data[i,;]]
+    else
+        global norm_data_x = [norm_data_x, norm_data[i,;]]
+    end
+end
+
+#Dimensions of the datasets
+dimension_d = length(norm_data_x[1,:])
+nb_data_x = length(norm_data_x[:,1])
+nb_data_y = length(norm_data_y[:,1])
 
 #Defining the MIP model
 solver = Model(Ipopt.Optimizer)
 
-#Lower & Upper bounds eps <= l <= u <= 1-eps 
-# 0 <= l < u < 1
-@variable(solver,u[1:dimension_d] <= 1.0-eps())
-@variable(solver,l[1:dimension_d] >= eps())
+#Lower & Upper bounds:   eps <= l <= u <= 1-eps 
+@variable(solver,u[1:dimension_d] <= 1.0-EPSI)
+@variable(solver,l[1:dimension_d] >= EPSI)
 @constraint(solver,u .>= l)
 
 #Objective function 
 @objective(solver,Max,sum(u[i] - l[i] for i in 1:dimension_d))
 
-# epsi = eps(Float16)
-epsi = 0.00000001
-
 #For each input variable, (u-x)(l-x) >= eps
 for i in 1:dimension_d
-    x_i = norm_df[:,i]
-    @constraint(solver,[j = 1:nb_X],(u[i] - x_i[j])*(l[i] - x_i[j]) >= epsi)
+    x_i = norm_data_x[:,i]
+    @constraint(solver,[j = 1:nb_data_x],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
 end
 
-optimize!(solver) #execute model
-@show solver #print
+optimize!(solver)
+@show solver 
 @show objective_value(solver)
 @show value.(u)
 @show value.(l)
 
 #values of u & l should be normalized ?
-
-# function is_bigger(x,y)
-#     if(x > y)
-#         return 1
-#     end
-#     return 0
-# end
-# @NLconstraint(solver, sum(is_bigger(u[i], x_i[j]) for j in 1:nb_X) + sum(is_bigger(x_i[j],l[i]) for j in 1:nb_X) == nb_X)
