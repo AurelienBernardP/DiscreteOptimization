@@ -13,48 +13,45 @@ using DataFrames
 using StatsBase
 
 CSV_FILE_NAME = "DataProjetExport.csv"
-THRESHOLD = 1.0
-EPSI = 0.0000001 # = eps(Float16,32,64)
+THRESHOLD = 1
 
 #Reading the file
 df = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
 
+#Remove all datapoints of the set Y, only keep datapoints of set X
+df_x = filter(row -> (row[ncol(df)] > THRESHOLD),  df)
+
 #Retrieve the last column to only have input variables in the data frame
-output_variable = df[:,ncol(df)]
 df = select!(df, Not(ncol(df)))
+
+#Dimension of the dataset
+dimension_d = ncol(df)
+nb_X = length(df[:,1])
 
 #Normalizing the input variables
 df_array = Array(df)
 dt = fit(UnitRangeTransform,dims=1 ,df_array)
 norm_df = StatsBase.transform!(dt, df_array)
 
-#Remove the set Y from dataframe, only keep datapoints of set X
-for i=length(output_variable):-1:1
-    if(output_variable[i] <= THRESHOLD)
-        global norm_df = norm_df[1:end .!=i,:]
-    end
-end
-
-#Dimension of the remaining dataset
-dimension_d = length(norm_df[1,:])
-nb_data = length(norm_df[:,1])
-
 #Defining the MIP model
 solver = Model(Ipopt.Optimizer)
 
 #Lower & Upper bounds eps <= l <= u <= 1-eps 
 # 0 <= l < u < 1
-@variable(solver,u[1:dimension_d] <= 1.0-EPSI)
-@variable(solver,l[1:dimension_d] >= EPSI)
+@variable(solver,u[1:dimension_d] <= 1.0-eps())
+@variable(solver,l[1:dimension_d] >= eps())
 @constraint(solver,u .>= l)
 
 #Objective function 
 @objective(solver,Max,sum(u[i] - l[i] for i in 1:dimension_d))
 
+# epsi = eps(Float16)
+epsi = 0.00000001
+
 #For each input variable, (u-x)(l-x) >= eps
 for i in 1:dimension_d
     x_i = norm_df[:,i]
-    @constraint(solver,[j = 1:nb_data],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
+    @constraint(solver,[j = 1:nb_X],(u[i] - x_i[j])*(l[i] - x_i[j]) >= epsi)
 end
 
 optimize!(solver) #execute model
@@ -71,4 +68,4 @@ optimize!(solver) #execute model
 #     end
 #     return 0
 # end
-# @NLconstraint(solver, sum(is_bigger(u[i], x_i[j]) for j in 1:nb_data) + sum(is_bigger(x_i[j],l[i]) for j in 1:nb_data) == nb_data)
+# @NLconstraint(solver, sum(is_bigger(u[i], x_i[j]) for j in 1:nb_X) + sum(is_bigger(x_i[j],l[i]) for j in 1:nb_X) == nb_X)
