@@ -24,9 +24,9 @@ def cost_function(lower,upper):
 
     cube_len = 0
     for i in range(len(lower)):
-        cube_len += (upper[i] - lower[i])
+        cube_len -= (upper[i] - lower[i])
 
-    return cost_function
+    return cube_len
 
 def find_upper_val(sorted_dims,lower_index,dimension):
     return sorted_dims[dimension,lower_index+1,1]
@@ -46,14 +46,16 @@ def simulated_annealing_solver(dataframe, initial_T):
 
     lower_curr = np.zeros(nb_dimesions)
     upper_curr = np.zeros(nb_dimesions)
-
+    prev_cost = 0
+    curr_cost = 0
     for i in reversed(range(1,initial_T + nb_dimesions)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
-
+        if i % 10000 == 0 :
+            print("at iteration " + str(i) + " current cost is : " + str(curr_cost),end='\r')
         current_dim = i % nb_dimesions
-        random_element_pos = np.random.randint(nb_elements)
+        random_element_pos = np.random.randint(nb_elements-1)
 
-        lower_curr[current_dim] = sorted_dims[current_dim,random_element_pos,1]
-        upper_curr[current_dim] = sorted_dims[current_dim,random_element_pos+1,1]
+        lower_curr[current_dim] = sorted_dims[current_dim][random_element_pos][1]
+        upper_curr[current_dim] = sorted_dims[current_dim][random_element_pos+1][1]
 
         prev_cost = cost_function(lower_prev,upper_prev)
         curr_cost = cost_function(lower_curr,upper_curr)
@@ -73,7 +75,7 @@ def simulated_annealing_solver(dataframe, initial_T):
             lower_curr[current_dim] = lower_prev[current_dim]
             upper_curr[current_dim] = upper_prev[current_dim]
         
-    return 
+    return lower_curr, upper_curr
     # uses tge
 
 #Reading the file
@@ -97,4 +99,6 @@ normalized_dataframe = pd.DataFrame(fitted_scaler)
 print(normalized_dataframe)
 #dataframe order is preserved
 
-simulated_annealing_solver(normalized_dataframe, 100)
+L,U = simulated_annealing_solver(normalized_dataframe, 1000000000)
+print('lower = ', L)
+print('upper = ', U)
