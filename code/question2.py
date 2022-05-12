@@ -12,6 +12,14 @@ CSV_FILE_NAME = "DataProjetExport.csv"
 THRESHOLD = 1.
 EPS = np.finfo(float).eps
 
+def check_output_is_valid(dataframe, lower, upper):
+    nb_dimensions = len(dataframe.columns)
+    nb_elements = len(dataframe.index)
+    for i in range(nb_dimensions):
+        #check if lower and upper are correctly place to not have an element between them
+        continue
+    return
+
 def select_inferior(previous_cost,current_cost,temperature):
 
     threshold = np.exp((previous_cost - current_cost)/temperature)
@@ -38,25 +46,29 @@ def simulated_annealing_solver(dataframe, initial_T):
 
     for i in range(nb_dimensions):
         dimension = dataframe[i]
-        
-        sorted_dims.append(sorted(enumerate(dimension), key=lambda j: j[1]))
-        #each row of sorted_dims is a list of nb_elements long with structure [(element nb previous to sort), (sorted attribute val)]
-    lower_prev = np.zeros(nb_dimensions)
-    upper_prev = np.zeros(nb_dimensions)
+        sorted_dims.append(sorted(dimension))
+        sorted_dims[i].insert(0, 0)# insert lowest value for each dimension
+        sorted_dims[i].append(1.)  # insert highest value for each dimension
 
-    lower_curr = np.zeros(nb_dimensions)
-    upper_curr = np.zeros(nb_dimensions)
+        #each row of sorted_dims is a list of nb_elements containing the sorted values for that dimension
+    lower_prev = np.zeros(len(sorted_dims[0]))
+    upper_prev = np.zeros(len(sorted_dims[0]))
+
+    lower_curr = np.zeros(len(sorted_dims[0]))
+    upper_curr = np.zeros(len(sorted_dims[0]))
     prev_cost = 0
     curr_cost = 0
-    for i in reversed(range(1,initial_T + nb_dimensions)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
+    max_k = initial_T + nb_dimensions
+    for i in reversed(range(1,max_k)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
+
         if i % 10000 == 0 :
             print("at iteration " + str(i) + " current cost is : " + str(curr_cost),end='\r')
-        current_dim = i % nb_dimensions
-        random_element_pos = np.random.randint(nb_elements-1)
+        current_dim = np.random.randint(len(sorted_dims))
+        random_element_pos = np.random.randint(len(sorted_dims[0])-1)
 
-        lower_curr[current_dim] = sorted_dims[current_dim][random_element_pos][1]
-        upper_curr[current_dim] = sorted_dims[current_dim][random_element_pos+1][1]
-
+        lower_curr[current_dim] = sorted_dims[current_dim][random_element_pos]
+        upper_curr[current_dim] = sorted_dims[current_dim][random_element_pos+1]
+        
         prev_cost = cost_function(lower_prev,upper_prev)
         curr_cost = cost_function(lower_curr,upper_curr)
 
@@ -74,7 +86,8 @@ def simulated_annealing_solver(dataframe, initial_T):
             # revert current values to previous ones
             lower_curr[current_dim] = lower_prev[current_dim]
             upper_curr[current_dim] = upper_prev[current_dim]
-        
+    
+    print("final max : ", (np.minimum(prev_cost,curr_cost)))
     return lower_curr, upper_curr
     # uses tge
 
@@ -99,6 +112,6 @@ print(normalized_dataframe)
 
 #dataframe order is preserved
 
-L,U = simulated_annealing_solver(normalized_dataframe, 100000)
+L,U = simulated_annealing_solver(normalized_dataframe, 1000000)
 print('lower = ', L)
 print('upper = ', U)
