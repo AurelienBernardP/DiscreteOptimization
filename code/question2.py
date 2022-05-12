@@ -32,26 +32,26 @@ def find_upper_val(sorted_dims,lower_index,dimension):
     return sorted_dims[dimension,lower_index+1,1]
 
 def simulated_annealing_solver(dataframe, initial_T):
-    nb_dimesions = len(dataframe.columns)
+    nb_dimensions = len(dataframe.columns)
     nb_elements = len(dataframe.index)
     sorted_dims = []
 
-    for i in range(nb_dimesions):
+    for i in range(nb_dimensions):
         dimension = dataframe[i]
         
         sorted_dims.append(sorted(enumerate(dimension), key=lambda j: j[1]))
         #each row of sorted_dims is a list of nb_elements long with structure [(element nb previous to sort), (sorted attribute val)]
-    lower_prev = np.zeros(nb_dimesions)
-    upper_prev = np.zeros(nb_dimesions)
+    lower_prev = np.zeros(nb_dimensions)
+    upper_prev = np.zeros(nb_dimensions)
 
-    lower_curr = np.zeros(nb_dimesions)
-    upper_curr = np.zeros(nb_dimesions)
+    lower_curr = np.zeros(nb_dimensions)
+    upper_curr = np.zeros(nb_dimensions)
     prev_cost = 0
     curr_cost = 0
-    for i in reversed(range(1,initial_T + nb_dimesions)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
+    for i in reversed(range(1,initial_T + nb_dimensions)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
         if i % 10000 == 0 :
             print("at iteration " + str(i) + " current cost is : " + str(curr_cost),end='\r')
-        current_dim = i % nb_dimesions
+        current_dim = i % nb_dimensions
         random_element_pos = np.random.randint(nb_elements-1)
 
         lower_curr[current_dim] = sorted_dims[current_dim][random_element_pos][1]
@@ -81,24 +81,24 @@ def simulated_annealing_solver(dataframe, initial_T):
 #Reading the file
 dataframe = pd.read_csv(CSV_FILE_NAME,delimiter=';',header=None, skiprows=[590], dtype=float)
 
-#Remove all datapoints of the set Y
-datapoints_Y = (dataframe.iloc[:,-1:] < THRESHOLD).values
-dataframe = dataframe.drop([i for i, x in enumerate(datapoints_Y) if x])
-
 #Retrieve the last column to only have input variables in the data frame
 output_variable = dataframe.iloc[:,-1:]
 dataframe = dataframe.iloc[: , :-1]
-
-#Number of input variables
-nb_dimesions = len(dataframe.columns)
 
 #Normalizing the input variables
 scaler = preprocessing.MinMaxScaler()
 fitted_scaler = scaler.fit_transform(dataframe)
 normalized_dataframe = pd.DataFrame(fitted_scaler)
+
+#Remove all datapoints of the set Y
+for i in range(len(output_variable), 0, -1):
+    if(output_variable.iloc[i-1,0] <= THRESHOLD):
+        normalized_dataframe = normalized_dataframe.drop(i-1, axis=0)
+
 print(normalized_dataframe)
+
 #dataframe order is preserved
 
-L,U = simulated_annealing_solver(normalized_dataframe, 1000000000)
+L,U = simulated_annealing_solver(normalized_dataframe, 100000)
 print('lower = ', L)
 print('upper = ', U)
