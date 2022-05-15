@@ -1,8 +1,12 @@
-#Keep in mind that the given csv file is malformatted on line 591
-#The solution right now just skips that line
-#Another solution would be something like where malformatted ine have Nan values:
-#       csv_file = pd.read_csv(CSV_FILE_NAME,delimiter=';',header=None, thousands=None)
-#       csv_file = pd.to_numeric(csv_file, errors='coerce')
+#   question2.py
+#   Course:  [MATH0462] - Discrete optimization
+#   Title:   Project - Box search for data mining
+#   Authors: Kenan Ozdemir      20164038
+#            Aurelien Bertrand  20176639
+#   Date:    May 2022
+#   
+#   This file implements a heuristic for the problem regarding the second
+#   question of the project statement.
 
 from sklearn import preprocessing
 import pandas as pd
@@ -286,6 +290,6 @@ L,U = simple_greedy_approach(normalized_dataframe)
 print('lower = ', L)
 print('upper = ', U)
 '''
-box_intervals = expand_box_heuristic(normalized_dataframe,1500)
+box_intervals = expand_box_heuristic(normalized_dataframe,8000)
 print("box intervals: ",box_intervals)
 np.savetxt('box_intervals.txt', box_intervals) 

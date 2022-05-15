@@ -1,5 +1,13 @@
-# Note that the line 591 has been removed from the original CSV file because
-# malformatted.
+#   question1NL.jl	
+#   Course:  [MATH0462] - Discrete optimization
+#   Title:   Project - Box search for data mining
+#   Authors: Kenan Ozdemir      20164038
+#            Aurelien Bertrand  20176639
+#   Date:    May 2022
+#   
+#   This file implements a MINLP formulation for the problem regarding the first
+#   question of the project statement.
+
 using Pkg
 Pkg.add("CSV")
 Pkg.add("DataFrames")
@@ -12,9 +20,16 @@ using CSV
 using DataFrames
 using StatsBase
 
-CSV_FILE_NAME = "DataProjetExport.csv"
-THRESHOLD = 1.0
-EPSI = 0.0000001 # = eps(Float16,32,64)
+EPSI = 0.0000001 #Epsilon value
+
+# Catching filename and thresold of quality output
+if isempty(ARGS)
+    CSV_FILE_NAME = "DataProjetExport.csv"
+    THRESHOLD = 1.0
+else
+    CSV_FILE_NAME = ARGS[1]
+    THRESHOLD = ARGS[2]
+end
 
 #Reading the file
 df = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
@@ -61,6 +76,3 @@ optimize!(solver)
 @show objective_value(solver)
 @show value.(u)
 @show value.(l)
-
-#values of u & l should be normalized ?
-#increase significantly size of csv and check the speed

@@ -1,5 +1,12 @@
-# Note that the line 591 has been removed from the original CSV file because
-# malformatted.
+#   question3.jl	
+#   Course:  [MATH0462] - Discrete optimization
+#   Title:   Project - Box search for data mining
+#   Authors: Kenan Ozdemir      20164038
+#            Aurelien Bertrand  20176639
+#   Date:    May 2022
+#   
+#   This file implements a MIP formulation for the problem regarding the third
+#   question of the project statement.
 using Pkg
 Pkg.add("CSV")
 Pkg.add("DataFrames")

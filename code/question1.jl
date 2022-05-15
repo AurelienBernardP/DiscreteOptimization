@@ -1,18 +1,33 @@
-# Note that the line 591 has been removed from the original CSV file because
-# malformatted.
+#   question1.jl	
+#   Course:  [MATH0462] - Discrete optimization
+#   Title:   Project - Box search for data mining
+#   Authors: Kenan Ozdemir      20164038
+#            Aurelien Bertrand  20176639
+#   Date:    May 2022
+#   
+#   This file implements a MIP formulation for the problem regarding the first
+#   question of the project statement.
+
 using Pkg
 Pkg.add("CSV")
 Pkg.add("DataFrames")
 Pkg.add("StatsBase")
 Pkg.add("JuMP")
+Pkg.add("HiGHS")
 using JuMP
 using CSV
 using DataFrames
 using StatsBase
+using HiGHS
 
-CSV_FILE_NAME = "DataProjetExport.csv"
-THRESHOLD = 1.0
-EPSI = 0.0000001 # = eps(Float16,32,64)
+# Catching filename and thresold of quality output
+if isempty(ARGS)
+    CSV_FILE_NAME = "data/BasicExample1.csv"
+    THRESHOLD = 1.0
+else
+    CSV_FILE_NAME = ARGS[1]
+    THRESHOLD = parse(Float64, ARGS[2])
+end
 
 #Reading the file
 df = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
@@ -33,41 +48,46 @@ for i=length(output_variable):-1:1
     end
 end
 
-#Dimension of the remaining dataset
+#Dimensions of the remaining dataset
 dimension_d = length(norm_df[1,:])
 nb_data = length(norm_df[:,1])
 nb_intervals = nb_data+1
 
-#For each dimension/col, sort the vector, get the intervals between each datapoint
+#Sorting dataframe in each dimension
+sorted_dimensions = zeros(dimension_d, nb_data)
+for i in 1:dimension_d
+    sorted_dimensions[i,:] = sort(norm_df[:,i])
+end
+
+#Define the intervals between each datapoint in the corresponding sorted dimension
 intervals = zeros(dimension_d, nb_intervals)
 for i in 1:dimension_d
-    sorted_col_df = sort(norm_df[:,i])
-    intervals[i,1] = sorted_col_df[1]
-    intervals[i,nb_data+1] = 1.0-sorted_col_df[nb_data]
+    intervals[i,1] = sorted_dimensions[i,1]
+    intervals[i,nb_data+1] = 1.0-sorted_dimensions[i,nb_data]
     for j in 2:nb_data
-        intervals[i,j+1] = sorted_col_df[j] - sorted_col_df[j-1]
+        intervals[i,j] = sorted_dimensions[i,j] - sorted_dimensions[i,j-1]
     end
 end
-#Question: in the article, they unify identical values, should we do the same?
 
-
-#Question: for occup, can last column ever be filled ?
-occupation = zeros(Bool,nb_data,nb_intervals,dimension_d)
+# Define for each datapoint in which interval at each dimension it belongs to
+occupancy = zeros(Bool,nb_data,dimension_d,nb_intervals)
 for i in 1:nb_data
     datapoint = norm_df[i,:]
     for j in 1:dimension_d
-        
+        l = 1
+        while(datapoint[j] > sorted_dimensions[j,l])
+            l += 1
+        end
+        occupancy[i,j,l] = 1
     end
 end
 
-
-
 #Defining the MIP model
-solver = Model()
+solver = Model(HiGHS.Optimizer)
 
 #Lower & Upper binary vectors
-@variable(solver,binary=true,upper[1:dimension_d, 1:(nb_data+1)])
-@variable(solver,binary=true,lower[1:dimension_d, 1:(nb_data+1)])
+@variable(solver,integer=true,0<= upper[1:dimension_d, 1:(nb_data+1)] <= 1)
+@variable(solver,integer=true,0<= lower[1:dimension_d, 1:(nb_data+1)] <= 1)
 
 #Lower_ij >= upper_ij
 @constraint(solver,lower .>= upper)
@@ -76,17 +96,16 @@ solver = Model()
 @constraint(solver,[i = 1:dimension_d, j = 1:nb_data], lower[i,j] <= lower[i,j+1])
 @constraint(solver,[i = 1:dimension_d, j = 1:nb_data], upper[i,j] <= upper[i,j+1])
 
-#Objective function 
-@objective(solver,Max,sum(u[i] - l[i] for i in 1:dimension_d))
-
-#For each input variable, (u-x)(l-x) >= eps
-for i in 1:dimension_d
-    x_i = norm_df[:,i]
-    @constraint(solver,[j = 1:nb_data],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
+# Occupancy constraint
+for p in 1:nb_data
+        @constraint(solver,sum(sum(occupancy[p,i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d) <= dimension_d-1)
 end
+
+#Objective function 
+@objective(solver,Max,sum(sum( intervals[i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d))
 
 optimize!(solver)
 @show solver 
 @show objective_value(solver)
-@show value.(u)
-@show value.(l)
+@show value.(upper)
+@show value.(lower)
