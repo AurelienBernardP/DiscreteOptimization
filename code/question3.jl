@@ -27,36 +27,45 @@ data = select!(data, Not(ncol(data)))
 data_array = Array(data)
 dt = fit(UnitRangeTransform,dims=1 ,data_array)
 norm_data = StatsBase.transform!(dt, data_array)
+dimension_d = length(norm_data[1,:])
 
 #Splitting the dataframe into the set X and Y
+norm_data_y = zeros(0,dimension_d)
+norm_data_x = zeros(0,dimension_d)
 for i=length(output_variable):-1:1
     if(output_variable[i] <= THRESHOLD)
-        global norm_data_y = [norm_data_y, norm_data[i,;]]
+        global norm_data_y = vcat(norm_data_y, norm_data[i,:]')
     else
-        global norm_data_x = [norm_data_x, norm_data[i,;]]
+        global norm_data_x = vcat(norm_data_x, norm_data[i,:]')
     end
 end
 
 #Dimensions of the datasets
-dimension_d = length(norm_data_x[1,:])
 nb_data_x = length(norm_data_x[:,1])
 nb_data_y = length(norm_data_y[:,1])
 
 #Defining the MIP model
 solver = Model(Ipopt.Optimizer)
+contains(l,u,x) = (l <= x <= u) ? 1 : 0
+register(solver, :contains, 3, contains; autodiff=true)
 
 #Lower & Upper bounds:   eps <= l <= u <= 1-eps 
 @variable(solver,u[1:dimension_d] <= 1.0-EPSI)
+@variable(solver,z)
 @variable(solver,l[1:dimension_d] >= EPSI)
 @constraint(solver,u .>= l)
 
 #Objective function 
-@objective(solver,Max,sum(u[i] - l[i] for i in 1:dimension_d))
+# @NLobjective(solver,Max,sum(sum(contains(l[i],u[i],norm_data_y[j,i]) for j in 1:nb_data_y) for i in 1:dimension_d))
+@objective(solver,Max,z)
 
 #For each input variable, (u-x)(l-x) >= eps
 for i in 1:dimension_d
     x_i = norm_data_x[:,i]
     @constraint(solver,[j = 1:nb_data_x],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
+
+    y_i = norm_data_y[:,i]
+    @NLconstraint(solver, sum(contains(l[i],u[i],y_i[j]) for j in 1:nb_data_y) == z )
 end
 
 optimize!(solver)

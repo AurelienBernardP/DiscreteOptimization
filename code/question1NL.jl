@@ -5,7 +5,9 @@ Pkg.add("CSV")
 Pkg.add("DataFrames")
 Pkg.add("StatsBase")
 Pkg.add("JuMP")
+Pkg.add("Ipopt")
 using JuMP
+using Ipopt
 using CSV
 using DataFrames
 using StatsBase
@@ -36,45 +38,14 @@ end
 #Dimension of the remaining dataset
 dimension_d = length(norm_df[1,:])
 nb_data = length(norm_df[:,1])
-nb_intervals = nb_data+1
-
-#For each dimension/col, sort the vector, get the intervals between each datapoint
-intervals = zeros(dimension_d, nb_intervals)
-for i in 1:dimension_d
-    sorted_col_df = sort(norm_df[:,i])
-    intervals[i,1] = sorted_col_df[1]
-    intervals[i,nb_data+1] = 1.0-sorted_col_df[nb_data]
-    for j in 2:nb_data
-        intervals[i,j+1] = sorted_col_df[j] - sorted_col_df[j-1]
-    end
-end
-#Question: in the article, they unify identical values, should we do the same?
-
-
-#Question: for occup, can last column ever be filled ?
-occupation = zeros(Bool,nb_data,nb_intervals,dimension_d)
-for i in 1:nb_data
-    datapoint = norm_df[i,:]
-    for j in 1:dimension_d
-        
-    end
-end
-
-
 
 #Defining the MIP model
-solver = Model()
+solver = Model(Ipopt.Optimizer)
 
-#Lower & Upper binary vectors
-@variable(solver,binary=true,upper[1:dimension_d, 1:(nb_data+1)])
-@variable(solver,binary=true,lower[1:dimension_d, 1:(nb_data+1)])
-
-#Lower_ij >= upper_ij
-@constraint(solver,lower .>= upper)
-
-#For each dimension, Lower_i+1 >= Lower_i
-@constraint(solver,[i = 1:dimension_d, j = 1:nb_data], lower[i,j] <= lower[i,j+1])
-@constraint(solver,[i = 1:dimension_d, j = 1:nb_data], upper[i,j] <= upper[i,j+1])
+#Lower & Upper bounds:   eps <= l <= u <= 1-eps 
+@variable(solver,u[1:dimension_d] <= 1.0-EPSI)
+@variable(solver,l[1:dimension_d] >= EPSI)
+@constraint(solver,u .>= l)
 
 #Objective function 
 @objective(solver,Max,sum(u[i] - l[i] for i in 1:dimension_d))
@@ -90,3 +61,6 @@ optimize!(solver)
 @show objective_value(solver)
 @show value.(u)
 @show value.(l)
+
+#values of u & l should be normalized ?
+#increase significantly size of csv and check the speed
