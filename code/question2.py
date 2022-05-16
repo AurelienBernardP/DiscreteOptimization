@@ -12,7 +12,7 @@ from sklearn import preprocessing
 import pandas as pd
 import numpy as np
 
-CSV_FILE_NAME = "data/BasicExample1.csv"
+CSV_FILE_NAME = "data/DataProjetExport.csv"
 THRESHOLD = 1.
 EPS = np.finfo(float).eps
 
@@ -146,12 +146,20 @@ def expand_box_heuristic(dataframe,max_nb_expansions):
                 max_interval_distance = intervals[i,j]
                 max_interval_index = j
         box_intervals[i,max_interval_index] = 1
-    print("greedy box : ", box_intervals)
+    
     first_cell_collision = check_colision_aux(box_intervals,occupancy_x)
     
     if first_cell_collision:
         print('is there collision in first cell ', first_cell_collision)
-    print("initial greedy len : ", total_len_from_box_interval(box_intervals,intervals))
+        coll = True
+        while coll:
+            intervals_to_set = np.random.randint(nb_intervals, size=nb_dims)
+            box_intervals = np.zeros((nb_dims,nb_intervals),dtype = np.int8) 
+            for i in range(nb_dims):
+                box_intervals[i,intervals_to_set[i]] = 1
+            coll = check_colision_aux(box_intervals,occupancy_x)
+    print("initial box : ", box_intervals)
+    print("initial len : ", total_len_from_box_interval(box_intervals,intervals))
 
     #start expansion
     expanded = True
@@ -177,85 +185,8 @@ def expand_box_heuristic(dataframe,max_nb_expansions):
     print("len after expansion : ", total_len_from_box_interval(box_intervals,intervals))
     return box_intervals
 
-def simple_greedy_approach(dataframe):
-    nb_dimensions = len(dataframe.columns)
-    nb_elements = len(dataframe.index)
-    sorted_dims = []
+#################### Begin program
 
-    for i in range(nb_dimensions):
-        dimension = dataframe.iloc[:,i]
-        sorted_dims.append(sorted(dimension))
-        sorted_dims[i].insert(0, 0)# insert lowest value for each dimension
-        sorted_dims[i].append(1.)  # insert highest value for each dimension
-
-    L = np.zeros(nb_dimensions)
-    U = np.zeros(nb_dimensions)
-
-    for i in range(len(sorted_dims)):
-        max_interval_lower_index = 0
-        max_interval_distance = 0
-        for j in range(len(sorted_dims[i])-1):
-            interval_d = sorted_dims[i][j+1] - sorted_dims[i][j]
-            if interval_d > max_interval_distance:
-                max_interval_distance = interval_d
-                max_interval_lower_index = j
-        L[i] = sorted_dims[i][max_interval_lower_index]
-        U[i] = sorted_dims[i][max_interval_lower_index + 1]
-
-    print('total box distance : ', - cost_function(L,U))
-    return L, U
-
-def simulated_annealing_solver(dataframe, initial_T):
-    nb_dimensions = len(dataframe.columns)
-    nb_elements = len(dataframe.index)
-    sorted_dims = []
-
-    for i in range(nb_dimensions):
-        dimension = dataframe.iloc[:,i]
-        sorted_dims.append(sorted(dimension))
-        sorted_dims[i].insert(0, 0)# insert lowest value for each dimension
-        sorted_dims[i].append(1.)  # insert highest value for each dimension
-
-        #each row of sorted_dims is a list of nb_elements containing the sorted values for that dimension
-    lower_prev = np.zeros(len(sorted_dims[0]))
-    upper_prev = np.zeros(len(sorted_dims[0]))
-
-    lower_curr = np.zeros(len(sorted_dims[0]))
-    upper_curr = np.zeros(len(sorted_dims[0]))
-    prev_cost = 0
-    curr_cost = 0
-    max_k = initial_T + nb_dimensions
-    for i in reversed(range(1,max_k)): # range 1 (to not divide by 0) to initial_T + nb_dims.(To at least run through every dimension once)
-
-        if i % 10000 == 0 :
-            print("at iteration " + str(i) + " current cost is : " + str(curr_cost),end='\r')
-        current_dim = np.random.randint(len(sorted_dims))
-        random_element_pos = np.random.randint(len(sorted_dims[0])-1)
-
-        lower_curr[current_dim] = sorted_dims[current_dim][random_element_pos]
-        upper_curr[current_dim] = sorted_dims[current_dim][random_element_pos+1]
-        
-        prev_cost = cost_function(lower_prev,upper_prev)
-        curr_cost = cost_function(lower_curr,upper_curr)
-
-        if curr_cost <= prev_cost:
-            # replace new better cost in previous values
-            lower_prev[current_dim] = lower_curr[current_dim]
-            upper_prev[current_dim] = upper_curr[current_dim]
-
-        elif select_inferior(prev_cost,curr_cost,i):
-            # replace by worst box only if lucky
-            lower_prev[current_dim] = lower_curr[current_dim]
-            upper_prev[current_dim] = upper_curr[current_dim]
-
-        else:
-            # revert current values to previous ones
-            lower_curr[current_dim] = lower_prev[current_dim]
-            upper_curr[current_dim] = upper_prev[current_dim]
-    
-    print("final max : ", (np.minimum(prev_cost,curr_cost)))
-    return lower_curr, upper_curr
-    # uses tge
 
 #Reading the file
 dataframe = pd.read_csv(CSV_FILE_NAME,delimiter=';',header=None, skiprows=[590], dtype=float)
@@ -276,14 +207,7 @@ for i in range(len(output_variable), 0, -1):
 
 print(normalized_dataframe)
 
-'''
-#select two dimensions for testing
-reduced_dataframe = normalized_dataframe.iloc[:,0:2]
 
-#select first 7 points
-reduced_dataframe = reduced_dataframe.iloc[0:7]
-print(reduced_dataframe)
-'''
 #dataframe order is preserved
 '''
 L,U = simple_greedy_approach(normalized_dataframe)
