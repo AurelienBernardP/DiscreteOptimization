@@ -151,7 +151,15 @@ def expand_box_heuristic(dataframe,max_nb_expansions):
     
     if first_cell_collision:
         print('is there collision in first cell ', first_cell_collision)
-    print("initial greedy len : ", total_len_from_box_interval(box_intervals,intervals))
+        coll = True
+        while coll:
+            intervals_to_set = np.random.randint(nb_intervals, size=nb_dims)
+            box_intervals = np.zeros((nb_dims,nb_intervals),dtype = np.int8) 
+            for i in range(nb_dims):
+                box_intervals[i,intervals_to_set[i]] = 1
+            coll = check_colision_aux(box_intervals,occupancy_x)
+            
+    print("initial len : ", total_len_from_box_interval(box_intervals,intervals))
 
     #start expansion
     expanded = True
