@@ -22,7 +22,7 @@ using HiGHS
 
 # Catching filename and thresold of quality output
 if isempty(ARGS) || length(ARGS) != 2
-    CSV_FILE_NAME = "data/BasicExample1.csv"
+    CSV_FILE_NAME = "data/BasicExample2.csv"
     THRESHOLD = 1.0
 else
     CSV_FILE_NAME = ARGS[1]
@@ -84,7 +84,7 @@ for i in 1:nb_data
     datapoint = norm_df[i,:]
     for j in 1:dimension_d
         l = 1
-        while(datapoint[j] > sorted_dimensions[j,l])
+        while(l<=nb_data && datapoint[j] > sorted_dimensions[j,l])
             l += 1
         end
         occupancy[i,j,l] = 1
@@ -96,8 +96,8 @@ println("Defining the MIP formulation")
 solver = Model(HiGHS.Optimizer)
 
 #Lower & Upper binary vectors
-@variable(solver,integer=true,0<= upper[1:dimension_d, 1:(nb_data+1)] <= 1)
-@variable(solver,integer=true,0<= lower[1:dimension_d, 1:(nb_data+1)] <= 1)
+@variable(solver,integer=true,0<= upper[1:dimension_d, 1:nb_intervals] <= 1)
+@variable(solver,integer=true,0<= lower[1:dimension_d, 1:nb_intervals] <= 1)
 
 #Lower_ij >= upper_ij
 @constraint(solver,lower .>= upper)
@@ -108,7 +108,7 @@ solver = Model(HiGHS.Optimizer)
 
 # Occupancy constraint
 for p in 1:nb_data
-        @constraint(solver,sum(sum(occupancy[p,i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d) <= dimension_d-1)
+    @constraint(solver,sum(sum(occupancy[p,i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d) <= dimension_d-1)
 end
 
 #Objective function 
@@ -121,6 +121,8 @@ println("Upper matrix:")
 display(value.(upper))
 println("\nLower matrix:")
 display(value.(lower))
+println("\nBox intervals (lower-upper):")
+display(value.(lower-upper))
 
 #Objective values
 println("\nNormalized objective function value: ",objective_value(solver))

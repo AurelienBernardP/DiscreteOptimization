@@ -12,73 +12,136 @@ Pkg.add("CSV")
 Pkg.add("DataFrames")
 Pkg.add("StatsBase")
 Pkg.add("JuMP")
-Pkg.add("Ipopt")
+Pkg.add("HiGHS")
 using JuMP
-using Ipopt
+using HiGHS
 using CSV
 using DataFrames
 using StatsBase
 
-CSV_FILE_NAME = "DataProjetExport.csv"
-THRESHOLD = 1.0
-EPSI = 0.0000001 # = eps(Float16,32,64)
+# Catching filename and thresold of quality output
+if isempty(ARGS) || length(ARGS) != 2
+    CSV_FILE_NAME = "data/BasicExample1_q4.csv"
+    THRESHOLD = 1.0
+else
+    CSV_FILE_NAME = ARGS[1]
+    THRESHOLD = parse(Float64, ARGS[2])
+end
 
 #Reading the file
-data = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
+df = CSV.read(CSV_FILE_NAME,DataFrame,header=0,delim=';')
 
 #Retrieve the last column to only have input variables in the data frame
-output_variable = data[:,ncol(data)]
-data = select!(data, Not(ncol(data)))
+output_variable = df[:,ncol(df)]
+df = select!(df, Not(ncol(df)))
 
 #Normalizing the input variables
-data_array = Array(data)
-dt = fit(UnitRangeTransform,dims=1 ,data_array)
-norm_data = StatsBase.transform!(dt, data_array)
+println("Normalizing dataframe")
+df_array = Array(df)
+dt = fit(UnitRangeTransform,dims=1 ,df_array)
+norm_data = StatsBase.transform!(dt, df_array)
 dimension_d = length(norm_data[1,:])
+minimums = zeros(1,ncol(df))
+maximums = zeros(1,ncol(df))
+for i in 1:ncol(df)
+    minimums[i] = minimum(df[:,i])
+    maximums[i] = maximum(df[:,i])
+end
 
 #Splitting the dataframe into the set X and Y
-norm_data_y = zeros(0,dimension_d)
-norm_data_x = zeros(0,dimension_d)
+data_y = zeros(0,dimension_d)
+data_x = zeros(0,dimension_d)
 for i=length(output_variable):-1:1
     if(output_variable[i] <= THRESHOLD)
-        global norm_data_y = vcat(norm_data_y, norm_data[i,:]')
+        global data_y = vcat(data_y, df_array[i,:]')
     else
-        global norm_data_x = vcat(norm_data_x, norm_data[i,:]')
+        global data_x = vcat(data_x, df_array[i,:]')
     end
 end
 
 #Dimensions of the datasets
-nb_data_x = length(norm_data_x[:,1])
-nb_data_y = length(norm_data_y[:,1])
+nb_data = length(norm_data[:,1])
+nb_data_y = length(data_y[:,1])
+nb_intervals = nb_data+1
 
-#Defining the MIP model
-solver = Model(Ipopt.Optimizer)
-contains(l,u,x) = (l <= x <= u) ? 1 : 0
-register(solver, :contains, 3, contains; autodiff=true)
-
-#Lower & Upper bounds:   eps <= l <= u <= 1-eps 
-@variable(solver,u[1:dimension_d] <= 1.0-EPSI)
-@variable(solver,z)
-@variable(solver,l[1:dimension_d] >= EPSI)
-@constraint(solver,u .>= l)
-
-#Objective function 
-# @NLobjective(solver,Max,sum(sum(contains(l[i],u[i],norm_data_y[j,i]) for j in 1:nb_data_y) for i in 1:dimension_d))
-@objective(solver,Max,z)
-
-#For each input variable, (u-x)(l-x) >= eps
+#Sorting dataframe in each dimension
+println("Defining various matrices to implement the solution")
+sorted_dimensions = zeros(dimension_d, nb_data)
 for i in 1:dimension_d
-    x_i = norm_data_x[:,i]
-    @constraint(solver,[j = 1:nb_data_x],(u[i] - x_i[j])*(l[i] - x_i[j]) >= EPSI)
-
-    y_i = norm_data_y[:,i]
-    @NLconstraint(solver, sum(contains(l[i],u[i],y_i[j]) for j in 1:nb_data_y) == z )
+    sorted_dimensions[i,:] = sort(norm_data[:,i])
 end
 
-optimize!(solver)
-@show solver 
-@show objective_value(solver)
-@show value.(u)
-@show value.(l)
+#Define the intervals between each datapoint in the corresponding sorted dimension
+intervals = zeros(dimension_d, nb_intervals)
+for i in 1:dimension_d
+    intervals[i,1] = sorted_dimensions[i,1]
+    intervals[i,nb_data+1] = 1.0-sorted_dimensions[i,nb_data]
+    for j in 2:nb_data
+        intervals[i,j] = sorted_dimensions[i,j] - sorted_dimensions[i,j-1]
+    end
+end
 
-#values of u & l should be normalized ?
+# Define for each datapoint in which interval at each dimension it belongs to
+occupancy = zeros(Bool,nb_data,dimension_d,nb_intervals)
+for i in 1:nb_data
+    datapoint = norm_data[i,:]
+    for j in 1:dimension_d
+        l = 1
+        while(l<=nb_data && datapoint[j] > sorted_dimensions[j,l])
+            l += 1
+        end
+        occupancy[i,j,l] = 1
+    end
+end
+
+occupancy_x = zeros(Bool,nb_data,dimension_d,nb_intervals)
+occupancy_y = zeros(Bool,nb_data,dimension_d,nb_intervals)
+for i in 1:nb_data
+    if(output_variable[i] <= THRESHOLD)
+        occupancy_y[i,:,:] = occupancy[i,:,:]
+    else
+        occupancy_x[i,:,:] = occupancy[i,:,:]
+    end
+end
+
+#Defining the MIP model
+println("Defining the MIP formulation")
+solver = Model(HiGHS.Optimizer)
+
+#Lower & Upper binary vectors
+@variable(solver,integer=true,0<= z[1:nb_data] <= 1)
+@variable(solver,integer=true,0<= upper[1:dimension_d, 1:nb_intervals] <= 1)
+@variable(solver,integer=true,0<= lower[1:dimension_d, 1:nb_intervals] <= 1)
+
+#Lower_ij >= upper_ij
+@constraint(solver,lower .>= upper)
+
+#For each dimension, Lower_i+1 >= Lower_i
+@constraint(solver,[i = 1:dimension_d, j = 1:nb_data], lower[i,j] <= lower[i,j+1])
+@constraint(solver,[i = 1:dimension_d, j = 1:nb_data], upper[i,j] <= upper[i,j+1])
+
+# Occupancy constraint
+for p in 1:nb_data
+    @constraint(solver,sum(sum(occupancy_x[p,i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d) <= dimension_d-1)
+    @constraint(solver, z[p] * dimension_d <= sum(sum(occupancy_y[p,i,j] * (lower[i,j] - upper[i,j]) for j in 1:nb_intervals) for i in 1:dimension_d))
+end
+
+#Objective function 
+@objective(solver,Max,sum(z[p] for p in 1:nb_data))
+
+println("Execution of the MIP formulation")
+optimize!(solver)
+@show solver
+print("\n")
+println("Upper matrix:")
+display(value.(upper))
+println("\nLower matrix:")
+display(value.(lower))
+println("\nBox intervals (lower-upper):")
+display(value.(lower-upper))
+
+#Objective values
+println("\nNormalized objective function value: ",objective_value(solver))
+denormalized(n,dimension) = n*maximums[dimension] - n*minimums[dimension] + minimums[dimension]
+
+
