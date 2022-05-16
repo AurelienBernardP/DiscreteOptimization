@@ -2,7 +2,7 @@
 #   Course:  [MATH0462] - Discrete optimization
 #   Title:   Project - Box search for data_df mining
 #   Authors: Kenan Ozdemir      20164038
-#            Aurelien Bertrand  20176639
+#            Aurelien Bernard  20176639
 #   Date:    May 2022
 #   
 #   This file implements a MIP formulation for the problem regarding the fourth
@@ -15,9 +15,9 @@ using DataFrames
 
 # Catching filename and thresold of quality output
 if isempty(ARGS) || length(ARGS) != 3
-    CSV_FILE_NAME = "data/BasicExample1_q4.csv"
+    CSV_FILE_NAME = "data/DataProjetExport.csv"
     THRESHOLD = 1.0
-    DATA_Y_LIMIT = 100
+    DATA_Y_LIMIT = 200
 else
     CSV_FILE_NAME = ARGS[1]
     THRESHOLD = parse(Float64, ARGS[2])

@@ -2,7 +2,7 @@
 #   Course:  [MATH0462] - Discrete optimization
 #   Title:   Project - Box search for data mining
 #   Authors: Kenan Ozdemir      20164038
-#            Aurelien Bertrand  20176639
+#            Aurelien Bernard  20176639
 #   Date:    May 2022
 #   
 #   This file implements a MIP formulation for the problem regarding the first
@@ -22,7 +22,7 @@ using HiGHS
 
 # Catching filename and thresold of quality output
 if isempty(ARGS) || length(ARGS) != 2
-    CSV_FILE_NAME = "data/BasicExample2.csv"
+    CSV_FILE_NAME = "data/DataProjetExport.csv"
     THRESHOLD = 1.0
 else
     CSV_FILE_NAME = ARGS[1]
@@ -117,10 +117,6 @@ println("Execution of the MIP formulation")
 optimize!(solver)
 @show solver
 print("\n")
-println("Upper matrix:")
-display(value.(upper))
-println("\nLower matrix:")
-display(value.(lower))
 println("\nBox intervals (lower-upper):")
 display(value.(lower-upper))
 

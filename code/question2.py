@@ -2,7 +2,7 @@
 #   Course:  [MATH0462] - Discrete optimization
 #   Title:   Project - Box search for data mining
 #   Authors: Kenan Ozdemir      20164038
-#            Aurelien Bertrand  20176639
+#            Aurelien Bernard  20176639
 #   Date:    May 2022
 #   
 #   This file implements a heuristic for the problem regarding the second

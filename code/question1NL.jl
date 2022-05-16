@@ -2,7 +2,7 @@
 #   Course:  [MATH0462] - Discrete optimization
 #   Title:   Project - Box search for data mining
 #   Authors: Kenan Ozdemir      20164038
-#            Aurelien Bertrand  20176639
+#            Aurelien Bernard  20176639
 #   Date:    May 2022
 #   
 #   This file implements a MINLP formulation for the problem regarding the first
@@ -20,11 +20,11 @@ using CSV
 using DataFrames
 using StatsBase
 
-EPSI = 0.0000001 #Epsilon value
+EPSI = 0.000001 #Epsilon value
 
 # Catching filename and thresold of quality output
 if isempty(ARGS) || length(ARGS) != 2
-    CSV_FILE_NAME = "data/BasicExample1.csv"
+    CSV_FILE_NAME = "data/DataProjetExport.csv"
     THRESHOLD = 1.0
 else
     CSV_FILE_NAME = ARGS[1]
@@ -92,4 +92,3 @@ display(value.(l))
 println("\nNormalized objective function value: ",objective_value(solver))
 denormalized(n,dimension) = n*maximums[dimension] - n*minimums[dimension] + minimums[dimension]
 println("Denormalized objective function value: ", value(sum(denormalized(u[i],i) - denormalized(l[i],i) for i in 1:dimension_d)))
-
