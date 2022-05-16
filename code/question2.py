@@ -12,7 +12,7 @@ from sklearn import preprocessing
 import pandas as pd
 import numpy as np
 
-CSV_FILE_NAME = "DataProjetExport.csv"
+CSV_FILE_NAME = "data/BasicExample1.csv"
 THRESHOLD = 1.
 EPS = np.finfo(float).eps
 
